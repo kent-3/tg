@@ -18,7 +18,7 @@ from subprocess import CompletedProcess
 from types import TracebackType
 from typing import Any, Dict, Optional, Tuple, Type
 
-import mailcap_fix as mailcap
+import mailcap
 
 from tg import config
 
@@ -76,7 +76,7 @@ def get_mime(file_path: str) -> str:
 def get_mailcap() -> Dict:
     if config.MAILCAP_FILE:
         with open(config.MAILCAP_FILE) as f:
-            return mailcap.readmailcapfile(f)
+            return mailcap.readmailcapfile(f)  # type: ignore[attr-defined]
     return mailcap.getcaps()
 
 
