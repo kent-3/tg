@@ -435,10 +435,12 @@ class MsgView:
         """
         selected_item_idx: Optional[int] = None
         collected_items: List[Tuple[Tuple[str, ...], bool, int]] = []
+        screen_overflow = False
         for ignore_before in range(len(msgs)):
             if selected_item_idx is not None:
                 break
             collected_items = []
+            screen_overflow = False
             line_num = self.h
             for msg_idx, msg_item in msgs[ignore_before:]:
                 is_selected_msg = current_msg_idx == msg_idx
@@ -470,6 +472,7 @@ class MsgView:
 
                 line_num -= needed_lines
                 if line_num < 0:
+                    screen_overflow = True
                     tail_lines = needed_lines + line_num - 1
                     # try preview long message that did fit in the screen
                     if tail_lines > 0 and not is_selected_msg:
@@ -491,6 +494,7 @@ class MsgView:
                 selected_item_idx not in (0, len(msgs) - 1, None)
                 and selected_item_idx is not None
                 and len(collected_items) - 1 - selected_item_idx < min_msg_padding
+                and screen_overflow
             ):
                 selected_item_idx = None
 

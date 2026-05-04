@@ -605,7 +605,7 @@ class MsgModel:
                 self.add_message(chat_id, msg)
 
         return [
-            (i, self.msgs[chat_id][msg_id])
+            (i + offset, self.msgs[chat_id][msg_id])
             for i, msg_id in enumerate(self.msg_ids[chat_id][offset : offset + limit])
         ]
 
