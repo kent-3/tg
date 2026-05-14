@@ -4,7 +4,7 @@ import shlex
 from datetime import datetime
 from functools import partial, wraps
 from queue import Queue
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, mkstemp
 from typing import Any, Callable, Dict, List, Optional
 
 from telegram.utils import AsyncResult
@@ -71,7 +71,7 @@ class Controller:
         self.queue: Queue = Queue()
         self.is_running = True
         self.tg = tg
-        self.chat_size = 0.5
+        self.chat_size = config.CHAT_VIEW_CHAT_SIZE
 
     @bind(msg_handler, ["c"])
     def show_chat_info(self) -> None:
@@ -339,10 +339,10 @@ class Controller:
 
     @bind(msg_handler, ["dd"])
     def delete_msgs(self) -> None:
-        is_deleted = self.model.delete_msgs()
+        error = self.model.delete_msgs()
         self.discard_selected_msgs()
-        if not is_deleted:
-            return self.present_error("Can't delete msg(s)")
+        if error:
+            return self.present_error(error)
         self.present_info("Message deleted")
 
     @bind(msg_handler, ["S"])
@@ -388,6 +388,36 @@ class Controller:
     def send_picture(self) -> None:
         """Enter file path and send compressed image"""
         self.send_file(self.tg.send_photo)
+
+    @bind(msg_handler, ["^V"])
+    def paste_picture(self) -> None:
+        """Send image from clipboard"""
+        if not config.PASTE_IMAGE_CMD:
+            return self.present_error("Image paste is not configured")
+
+        chat_id = self.model.chats.id_by_index(self.model.current_chat)
+        if not chat_id:
+            return self.present_error("No chat selected")
+
+        os.makedirs(config.FILES_DIR, exist_ok=True)
+        fd, file_path = mkstemp(suffix=".png", dir=config.FILES_DIR)
+        os.close(fd)
+        cmd = config.PASTE_IMAGE_CMD.format(file_path=shlex.quote(file_path))
+        with suspend(self.view) as s:
+            result = s.call(cmd)
+
+        if result.returncode or not os.path.getsize(file_path):
+            os.unlink(file_path)
+            return self.present_error("No image found in clipboard")
+
+        resp = self.view.status.get_input(f"Send pasted image <{file_path}>")
+        self.render_status()
+        if resp is None:
+            os.unlink(file_path)
+            return self.present_info("Image paste cancelled")
+
+        self.tg.send_photo(file_path, chat_id)
+        self.present_info("Image sent")
 
     @bind(msg_handler, ["sa"])
     def send_audio(self) -> None:
@@ -475,6 +505,11 @@ class Controller:
 
     def _open_msg(self, msg: MsgProxy, cmd: Optional[str] = None) -> None:
         if msg.is_text:
+            if cmd is None:
+                with suspend(self.view) as s:
+                    s.run_with_input(config.VIEW_TEXT_CMD, msg.text_content)
+                return
+
             with NamedTemporaryFile("w", suffix=".txt") as f:
                 f.write(msg.text_content)
                 f.flush()
@@ -660,10 +695,10 @@ class Controller:
 
     @bind(chat_handler, ["l", "^J", "^E"])
     def handle_msgs(self) -> Optional[str]:
-        rc = self.handle(msg_handler, 0.2)
+        rc = self.handle(msg_handler, config.MSG_VIEW_CHAT_SIZE)
         if rc == "QUIT":
             return rc
-        self.chat_size = 0.5
+        self.chat_size = config.CHAT_VIEW_CHAT_SIZE
         self.resize()
 
     @bind(chat_handler, ["g"])
@@ -732,7 +767,7 @@ class Controller:
 
     def run(self) -> None:
         try:
-            self.handle(chat_handler, 0.5)
+            self.handle(chat_handler, config.CHAT_VIEW_CHAT_SIZE)
             self.queue.put(self.close)
         except Exception:
             log.exception("Error happened in main loop")
@@ -813,6 +848,11 @@ class Controller:
         self.queue.put(self._render_chats)
 
     def _render_chats(self) -> None:
+        if self.view.chats.w <= 0:
+            self.view.chats.win.erase()
+            self.view.chats._refresh()
+            return
+
         page_size = self.view.chats.h - 1
         chats = self.model.get_chats(
             self.model.current_chat, page_size, MSGS_LEFT_SCROLL_THRESHOLD

@@ -202,7 +202,14 @@ class MsgProxy:
 
     @property
     def reply_msg_id(self) -> Optional[int]:
-        return self.msg.get("reply_to_message_id")
+        if reply_to_message_id := self.msg.get("reply_to_message_id"):
+            return reply_to_message_id
+
+        reply_to = self.msg.get("reply_to")
+        if isinstance(reply_to, dict):
+            return reply_to.get("message_id")
+
+        return None
 
     @property
     def reply_markup(self) -> Optional[Dict[str, Any]]:

@@ -94,14 +94,20 @@ else:
 if _os_name == _linux:
     if os.environ.get("WAYLAND_DISPLAY"):
         COPY_CMD = "wl-copy"
+        PASTE_IMAGE_CMD: Optional[str] = "wl-paste --type image/png > {file_path}"
     else:
         COPY_CMD = "xclip -selection c"
+        PASTE_IMAGE_CMD = "xclip -selection clipboard -t image/png -o > {file_path}"
 else:
     COPY_CMD = "pbcopy"
+    PASTE_IMAGE_CMD = None
 
 CHAT_FLAGS: Dict[str, str] = {}
 
 MSG_FLAGS: Dict[str, str] = {}
+
+CHAT_VIEW_CHAT_SIZE = 0.5
+MSG_VIEW_CHAT_SIZE = 0.2
 
 ICON_PATH = os.path.join(os.path.dirname(__file__), "resources", "tg.png")
 

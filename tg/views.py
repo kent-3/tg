@@ -164,6 +164,10 @@ class ChatView:
     def resize(self, rows: int, cols: int, width: int) -> None:
         self.h = rows - 1
         self.w = width
+        if self.w <= 0:
+            self.win.erase()
+            self._refresh()
+            return
         self.win.resize(self.h, self.w)
 
     def _msg_color(self, is_selected: bool = False) -> int:
