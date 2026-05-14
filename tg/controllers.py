@@ -278,7 +278,12 @@ class Controller:
         reply_to_msg = self.model.current_msg_id
         if msg := self.view.status.get_input():
             self.model.view_all_msgs()
-            self.tg.reply_message(chat_id, reply_to_msg, msg)
+            result = self.tg.reply_message(chat_id, reply_to_msg, msg)
+            result.wait()
+            if result.error:
+                return self.present_error(
+                    result.error_info.get("message", "Message reply wasn't sent")
+                )
             self.present_info("Message reply sent")
         else:
             self.present_info("Message reply wasn't sent")
@@ -301,7 +306,12 @@ class Controller:
             with open(f.name) as input_file:
                 if replied_msg := strip_replied_msg(input_file.read().strip()):
                     self.model.view_all_msgs()
-                    self.tg.reply_message(chat_id, reply_to_msg, replied_msg)
+                    result = self.tg.reply_message(chat_id, reply_to_msg, replied_msg)
+                    result.wait()
+                    if result.error:
+                        return self.present_error(
+                            result.error_info.get("message", "Message reply wasn't sent")
+                        )
                     self.present_info("Message sent")
                 else:
                     self.present_info("Message wasn't sent")

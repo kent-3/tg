@@ -14,6 +14,7 @@ magenta = curses.COLOR_MAGENTA
 red = curses.COLOR_RED
 white = curses.COLOR_WHITE
 yellow = curses.COLOR_YELLOW
+gray = 8
 default = -1
 
 # modes

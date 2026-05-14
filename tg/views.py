@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from tg import config
-from tg.colors import bold, cyan, get_color, magenta, reverse, white, yellow
+from tg.colors import bold, cyan, get_color, gray, magenta, reverse, white, yellow
 from tg.models import Model, UserModel
 from tg.msg import MsgProxy
 from tg.tdlib import ChatType, get_chat_type, is_group
@@ -404,6 +404,32 @@ class MsgView:
         return msg
 
     @staticmethod
+    def _indent_wrapped_msg(msg: str, first_width: int, next_width: int, indent: int) -> str:
+        lines = []
+        for paragraph in msg.split("\n"):
+            is_first_line = not lines
+            line_indent = 0 if is_first_line else indent
+            if not paragraph:
+                lines.append(" " * line_indent)
+                continue
+
+            current = " " * line_indent
+            current_width = line_indent
+            width = max(1, first_width if is_first_line else next_width)
+            for char in paragraph:
+                char_width = string_len_dwc(char)
+                if current and current_width + char_width > width:
+                    lines.append(current)
+                    current = " " * indent
+                    current_width = indent
+                    width = max(1, next_width)
+                current += char
+                current_width += char_width
+            if current:
+                lines.append(current)
+        return "\n".join(lines)
+
+    @staticmethod
     def _format_reply_markup(msg_proxy: MsgProxy) -> str:
         msg = ""
         reply_markup = msg_proxy.reply_markup
@@ -460,7 +486,15 @@ class MsgView:
                 label_elements = f" {dt} ", user_id, flags
                 label_len = sum(string_len_dwc(e) for e in label_elements)
 
-                msg = self._format_msg(msg_proxy, width_limit=self.w - label_len - 1)
+                timestamp_len = string_len_dwc(label_elements[0])
+                msg_width = self.w - label_len - 1
+                msg = self._format_msg(msg_proxy, width_limit=msg_width)
+                msg = self._indent_wrapped_msg(
+                    msg,
+                    msg_width,
+                    self.w - timestamp_len - 1,
+                    timestamp_len,
+                )
                 elements = *label_elements, f" {msg}"
                 needed_lines = 0
                 for i, msg_line in enumerate(msg.split("\n")):
@@ -525,6 +559,13 @@ class MsgView:
             for attr, elem in zip(self._msg_attributes(selected, user), elements):
                 if not elem:
                     continue
+                if "\n" in elem:
+                    for i, line in enumerate(elem.split("\n")):
+                        if not line:
+                            continue
+                        self.win.addstr(line_num + i, column if i == 0 else 0, line, attr)
+                    column += string_len_dwc(elem.split("\n", maxsplit=1)[0])
+                    continue
                 lines = (column + string_len_dwc(elem)) // self.w
                 last_line = self.h == line_num + lines
                 # work around agaist curses behaviour, when you cant write
@@ -575,7 +616,7 @@ class MsgView:
 
     def _msg_attributes(self, is_selected: bool, user: str) -> Tuple[int, ...]:
         attrs = (
-            get_color(cyan, -1),
+            get_color(gray, -1),
             get_color(get_color_by_str(user), -1),
             get_color(yellow, -1),
             get_color(white, -1),
